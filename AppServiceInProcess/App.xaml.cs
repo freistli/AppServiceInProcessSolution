@@ -40,6 +40,8 @@ namespace AppServiceInProcess
         private Logger logger;
         private Dictionary<IBackgroundTaskInstance, BackgroundTaskDeferral> _taskInstances = new Dictionary<IBackgroundTaskInstance, BackgroundTaskDeferral>();
         private AppServiceConnection _longRunAppServiceConnection;
+        private Semaphore semaphore;
+        private EventWaitHandle ewh;
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -63,6 +65,7 @@ namespace AppServiceInProcess
                 .CreateLogger();
 
             Windows.ApplicationModel.FullTrustProcessLauncher.LaunchFullTrustProcessForCurrentAppAsync();
+
         }
 
         private void App_UnhandledException(object sender, Windows.UI.Xaml.UnhandledExceptionEventArgs e)
@@ -135,7 +138,52 @@ namespace AppServiceInProcess
             //TODO: Save application state and stop any background activity
             deferral.Complete();
         }
+        void TestEventWaitHandle()
+        {
+            try
+            {
+                bool result = EventWaitHandle.TryOpenExisting("eventwaithandle_1234", out ewh);
+                if (!result)
+                {
+                    ewh = new EventWaitHandle(false, EventResetMode.AutoReset, "eventwaithandle_1234");
+                    logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " eventwaithandle_1234 cannot be opened, create a new");
+                    ewh.Set();
+                }
+                else
+                {
+                    logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " eventwaithandle_1234 is opened");
+                    ewh.Set();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + ex.ToString());
+            }
+        }
+        void TestSemaphore()
+        {
+            try
+            {
+                bool result = Semaphore.TryOpenExisting("appservicemain", out semaphore);
+                if (!result)
+                {
+                    logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " appservicemain semaphore cannot be opened, create a new");
+                    semaphore = new Semaphore(0, 1, "appservicemain");
 
+                }
+                else
+                {
+                    logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " appservicemain semaphore is opened");
+                }
+                logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " Semahpore is waiting");
+                semaphore.WaitOne();
+
+            }
+            catch (Exception ex)
+            {
+                logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + ex.ToString());
+            }
+        }
         protected override void OnBackgroundActivated(BackgroundActivatedEventArgs args)
         {
             base.OnBackgroundActivated(args);
@@ -163,6 +211,8 @@ namespace AppServiceInProcess
                 returnMessage.Add("Result", "OK");
                 returnMessage.Add("Response", "True");
                 await args.Request.SendResponseAsync(returnMessage);
+                 
+                TestEventWaitHandle();
             }
 
             if ("LongRun" == text)
@@ -173,6 +223,11 @@ namespace AppServiceInProcess
                 returnMessage.Add("Response", "Service knows LongRun instance is started");
                 await args.Request.SendResponseAsync(returnMessage);
                 _longRunAppServiceConnection = sender;
+
+                TestSemaphore();
+
+                logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " Semahpore is released");
+
             }
 
             try
@@ -182,7 +237,7 @@ namespace AppServiceInProcess
                     while (true)
                     {
                        
-                        await Task.Delay(5000);
+                        await Task.Delay(50000);
                         logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " Service is alive");
                     }
                 });
@@ -203,9 +258,12 @@ namespace AppServiceInProcess
             var appService = sender.TriggerDetails as AppServiceTriggerDetails;
             if (appService.AppServiceConnection == _longRunAppServiceConnection)
             {
-                
-                logger?.Information($"The LongRun AppService is Canceled, restart it");
-                Windows.ApplicationModel.FullTrustProcessLauncher.LaunchFullTrustProcessForCurrentAppAsync();
+
+                //logger?.Information($"The LongRun AppService is Canceled, restart it");
+                //Windows.ApplicationModel.FullTrustProcessLauncher.LaunchFullTrustProcessForCurrentAppAsync();
+
+                logger?.Information($"The LongRun AppService is Canceled, stop this main UWP as well");
+                Environment.Exit(0);
             }
             else
             {

@@ -12,6 +12,7 @@ using Windows.Foundation.Collections;
 using Windows.Storage;
 
 
+
 [DllImport("kernel32.dll")]
 static extern uint GetCurrentThreadId();
 
@@ -23,6 +24,7 @@ string dpath = Path.GetDirectoryName(storageFile.Path);
 
 string logFilePath = dpath + "\\longrunlog.txt";
 Logger logger = new LoggerConfiguration()
+    .WriteTo.Console()
     .WriteTo.File(logFilePath)
     .CreateLogger();
 
@@ -66,6 +68,45 @@ if (response.Status == AppServiceResponseStatus.Success)
 }
 
 
+try
+{
+    //var semaphore = Semaphore.OpenExisting("appservicemain");
+
+    var ewh = EventWaitHandle.OpenExisting("eventwaithandle_1234");
+    ewh.Set();
+    logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " opened");
+}
+catch (Exception ex)
+{
+    logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " eventwaithandle_1234 " + ex.ToString());
+}
+
+
+string peerSemaphore = @"AppContainerNamedObjects\S-1-15-2-3989185819-1529894802-462717500-670407784-4191515574-2726099911-3004833844\appservicemain";
+try
+{
+    var semaphore = Semaphore.OpenExisting(peerSemaphore);
+
+    logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + $" {peerSemaphore} semaphore is opened");
+
+    /*
+    semaphore.Release();
+    logger.Information("semaphore is released 1");
+    semaphore.Release();
+    logger.Information("semaphore is released 2");
+    semaphore.Release();
+    logger.Information("semaphore is released 3");
+    */
+ 
+}
+catch (Exception ex)
+{
+    logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " " + ex.ToString());
+}
+
+logger.Information(System.Security.Principal.WindowsIdentity.GetCurrent().Name);
+logger.Information(System.Security.Principal.WindowsIdentity.GetCurrent().User.Value);
+
 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo()
 {
     FileName = dpath,
@@ -73,8 +114,9 @@ System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo()
     Verb = "open"
 });
 
+
 while (true)
 {
     logger.Information(Process.GetCurrentProcess().Id + " " + GetCurrentThreadId() + " " + Thread.CurrentThread.ManagedThreadId + " Longrun is alive");
-    await Task.Delay(5000);
+    await Task.Delay(50000);
 }

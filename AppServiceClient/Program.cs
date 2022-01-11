@@ -37,4 +37,19 @@ if (response.Status == AppServiceResponseStatus.Success)
 
 Console.WriteLine(result);
 
-await Task.Delay(10000);
+
+await Task.Delay(5000);
+
+string peerSemaphore = @"AppContainerNamedObjects\S-1-15-2-3989185819-1529894802-462717500-670407784-4191515574-2726099911-3004833844\appservicemain";
+try
+{
+    var semaphore = Semaphore.OpenExisting(peerSemaphore);
+    semaphore.Release();     
+    Console.WriteLine("semaphore is released"); 
+}
+catch (Exception ex)
+{
+    Console.WriteLine(ex.ToString());
+}
+
+await Task.Delay(100000);
